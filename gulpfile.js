@@ -2,7 +2,7 @@
 
 var dependens = ['fs', 'path', 'gulp', 'gulp-csso', 'gulp-uglify',
                 'gulp-concat', 'gulp-less', 'gulp-bower',
-                'gulp-watch', 'main-bower-files'];
+                'gulp-watch', 'main-bower-files', 'karma', 'child_process'];
 
 dependens.forEach(function(name) {
     global[name.replace('gulp-', '')] = require(name);
@@ -11,45 +11,60 @@ dependens.forEach(function(name) {
 
 (function() {
 
-    var modules = fs.readdirSync('./modules/');
-
-    modules.forEach(function(name){
-        createModuleTasks(name, false);
-    })
-
-    gulp.task('all', function() {
-        modules.forEach(run)
-        function run(name) {gulp.run(name)}
-    });
-
-    gulp.task('default', function(){
-        console.log('');
-        console.log('  gulp [moduleName]:[type] -- build files in module by type.');
-        console.log('  gulp [moduleName] -- build module.');
-        console.log('  gulp all -- build all modules.');
-        console.log('');
-        console.log('  types: js, styles, assets, bower');
-        console.log('  modules: ' + modules);
-        console.log('');
-    });
+    var config = {
+        pathToBuildDir: '/home/lev/projects/solvy/gulped-solvy/_public/',
+        pathToDevDir: '/home/lev/projects/solvy/gulped-solvy/front-end/',
+        minification: true,
+        watching: true,
+        testing: false
+    };
 
 
-    function createModuleTasks(moduleName) {
+    findModules(createTasks);
 
-        var modulePath = moduleName
+
+    //Run for each module
+    function createTasks(moduleName) {
+
+        var modulePath = moduleName,
+            buildDir = config.pathToBuildDir,
+            devDir = config.pathToDevDir,
+            min = config.minification,
+            watch = config.watching;
+
 
         moduleName === 'global' ? modulePath = '../' : null
 
-        var buildDir = '../_public/',
+        var gSrc = devDir + '/modules/' + moduleName,
+            gDest = buildDir + '/modules/' + modulePath ;
 
-          //==============================
-            min = false, watch = true; //=
-          //==============================
 
-        //============= js
-        gulp.task(moduleName + ':js' , function() {
-            var src = './modules/' + moduleName + '/js/**/*.js',
-                dest = buildDir + 'modules/' +  modulePath  + '/';
+
+        gulp.task(moduleName + ':js', js);
+        gulp.task(moduleName + ':styles', styles);
+        gulp.task(moduleName + ':assets', assets);
+        gulp.task(moduleName + ':vendor', vendor);
+        gulp.task(moduleName + ':karma', testsKarma);
+        gulp.task(moduleName + ':installDep', installDep);
+
+ 
+
+
+        gulp.task(moduleName, function() {
+            gulp.run(moduleName + ':js');
+            gulp.run(moduleName + ':assets');
+            gulp.run(moduleName + ':styles');
+            gulp.run(moduleName + ':vendor');
+
+            if(config.testing) {
+                gulp.run(moduleName + ':karma');
+            }
+        });
+
+
+        function js() {
+            var src = gSrc + '/js/**/*.js',
+                dest = gDest + "/";
 
             gulp.src(src)
                 .pipe(concat(moduleName + '.js'))
@@ -57,12 +72,11 @@ dependens.forEach(function(name) {
                 .pipe(gulp.dest(dest));
 
             if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':js'); });
-        });
+        }
 
-        //============= less && css
-        gulp.task(moduleName + ':styles', function() {
-            var src = './modules/' + moduleName + '/styles/**/*',
-                dest = buildDir + 'modules/' +  modulePath  + '/';
+        function styles() {
+            var src =  gSrc + '/styles/**/*',
+                dest = gDest + "/";
 
             gulp.src(src)
                 .pipe(less({
@@ -73,49 +87,87 @@ dependens.forEach(function(name) {
                 .pipe(gulp.dest(dest));
 
             if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':styles'); });
-        });
+        }
 
 
-        //============= copy assets
-        gulp.task(moduleName + ':assets', function() {
-            var src = ['./modules/' + moduleName + '/assets/**/*'];
+         function assets() {
+            var src = gSrc + '/assets/**/*',
+                dest = gDest + "/";
 
-            gulp.src(src)
-                .pipe(gulp.dest(buildDir + 'modules/' +  modulePath  + '/' ));
+            gulp.src(src).pipe(gulp.dest(dest));
 
             if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':assets'); });
-        });
+        }
 
+       function vendor() {
 
-        //============= bower (concat to vendor and copy)
-        gulp.task(moduleName + ':bower', function() {
+            var jsStatic = gSrc + '/lib/**/*.js',
+                cssStatic = gSrc + '/lib/**/*.css',
+                cssJsDest = gDest + '/vendor',
+                fonts = gDest + '/fonts';
+
+            var srcJs = mainBowerFiles('/**/*.js'),
+                srcCss = mainBowerFiles('/**/*.css');
+
+            srcJs.push(jsStatic);
+            srcCss.push(cssStatic);
+
+            gulp.src(srcJs).pipe(concat(moduleName + '.vendor.js')).pipe(gulp.dest(cssJsDest));
+            gulp.src(srcCss).pipe(concat(moduleName + '.vendor.css')).pipe(gulp.dest(cssJsDest));
+            gulp.src(mainBowerFiles(/\.eot$|\.svg$|\.ttf$|\.woff$/)).pipe(gulp.dest(fonts));
 
             function mainBowerFiles(filter) {
-                return global['main-bower-files']({
-                    paths: './modules/' + moduleName,
+                var bowerComp = global['main-bower-files']({
+                    paths: gSrc,
                     filter: filter
                 });
+
+                return bowerComp;             
             }
+        }
 
-            gulp.src(mainBowerFiles('/**/*.js'))
-                .pipe(concat(moduleName + '.vendor.js'))
-                .pipe(gulp.dest(buildDir + 'modules/' +  modulePath  + '/vendor'));
+        function testsKarma(done) {
+            karma.server.start({
+                configFile:  devDir + 'tests/' + moduleName + '/karma.conf.js',
+                singleRun: false
+            }, done);
+        }
 
-            gulp.src(mainBowerFiles('/**/*.css'))
-                .pipe(concat(moduleName + '.vendor.css'))
-                .pipe(gulp.dest(buildDir + 'modules/' +  modulePath  + '/vendor'));
 
-            gulp.src(mainBowerFiles(/\.eot$|\.svg$|\.ttf$|\.woff$/))
-                .pipe(gulp.dest(buildDir + 'modules/' +  modulePath  + '/fonts'));
+        function installDep(done) {
+           var options = { 
+                cwd: gSrc
+            };
+
+           child_process.exec('bower install', options);
+        }        
+    }
+
+
+    function findModules(createModuleTasks) {
+        var modules = fs.readdirSync(config.pathToDevDir +'/modules/');
+
+        modules.forEach(function(name){
+            createModuleTasks(name, false);
+        })
+
+        gulp.task('all', function() {
+            modules.forEach(run)
+            function run(name) {gulp.run(name)}
         });
 
-        gulp.task(moduleName, function() {
-            gulp.run(moduleName + ':js');
-            gulp.run(moduleName + ':assets');
-            gulp.run(moduleName + ':styles');
-            gulp.run(moduleName + ':bower');
+        gulp.task('default', function(){
+            console.log('=============================================================');
+            console.log('  gulp [moduleName]:[type] -- build files in module by type.');
+            console.log('  gulp [moduleName] -- build module.');
+            console.log('  gulp all -- build all modules.');
+            console.log('                        -------                          ');
+            console.log('  types: js, styles, assets, vendor, installDep');
+            console.log('  modules: ' + modules.join(', '));
+            console.log('                        -------                          ');
+            console.log('  gulp editor:karma -- run tests and native karma watcher');
+            console.log('=============================================================');  
         });
-
     }
 })();
 
