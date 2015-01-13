@@ -45,14 +45,12 @@ dependens.forEach(function(name) {
         gulp.task(moduleName + ':assets', assets);
         gulp.task(moduleName + ':vendor', vendor);
         gulp.task(moduleName + ':karma', testsKarma);
-        gulp.task(moduleName + ':installDep', installDep);        
-        gulp.task(moduleName + ':htmlInclude', htmlInclude);
+        gulp.task(moduleName + ':installDep', installDep);    
 
        
         gulp.task(moduleName, function() {   
             gulp.run(moduleName + ':vendor');   
             gulp.run(moduleName + ':js');
-            gulp.run(moduleName + ':htmlInclude');
             gulp.run(moduleName + ':assets');
             gulp.run(moduleName + ':styles');
 
@@ -92,24 +90,20 @@ dependens.forEach(function(name) {
 
 
          function assets() {
-            var src = gSrc + '/assets/**/*',
+            var src = gSrc + '/assets/**/',
                 dest = gDest + "/";
 
-            gulp.src(src).pipe(gulp.dest(dest));
+            gulp.src(src + "!(*.html)")
+                .pipe(gulp.dest(dest));
+
+            gulp.src(src + "*.html")
+                .pipe(global['html-tag-include']())
+                .pipe(gulp.dest(dest));
 
             if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':assets'); });
         }
 
-        function htmlInclude() {
-            var src =  gSrc + '/templates/**/*.html',
-                dest = gDest + "/";
-
-            gulp.src(src)
-                .pipe(global['html-tag-include']())
-                .pipe(gulp.dest(dest));
-
-            if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':htmlInclude'); });
-        }
+    
 
        function vendor() {
 
@@ -188,7 +182,7 @@ dependens.forEach(function(name) {
             console.log('  gulp [moduleName] -- Build a module.');
             console.log('  gulp [moduleName]:[type] -- Build files by type.');
             console.log('                        -------                          ');
-            console.log('  types: js, styles, assets, vendor, installDep, htmlInclude');
+            console.log('  types: js, styles, assets, vendor, installDep');
             console.log('  modules: ' + modules.join(', '));
             console.log('                        -------                          ');
             console.log('  gulp editor:karma -- run tests and native karma watcher');
