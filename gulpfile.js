@@ -3,7 +3,7 @@
 var dependens = ['fs', 'path', 'gulp', 'gulp-csso', 'gulp-uglify',
                 'gulp-concat', 'gulp-less', 'gulp-bower',
                 'gulp-watch', 'main-bower-files', 'karma', 
-                'child_process', 'gulp-html-tag-include'];
+                'child_process', 'gulp-html-tag-include', 'color'];
 
 dependens.forEach(function(name) {
     global[name.replace('gulp-', '')] = require(name);
@@ -13,8 +13,8 @@ dependens.forEach(function(name) {
 (function() {
 
     var config = {
-        pathToBuildDir: '/home/lev/projects/solvy/v2.1/_public/',
-        pathToDevDir: '/home/lev/projects/solvy/v2.1/front-end/',
+        pathToBuildDir: '../_public/',
+        pathToDevDir: './',
         minification: false,
         watching: true
     };
@@ -44,7 +44,6 @@ dependens.forEach(function(name) {
         gulp.task(moduleName + ':styles', styles);
         gulp.task(moduleName + ':assets', assets);
         gulp.task(moduleName + ':vendor', vendor);
-        gulp.task(moduleName + ':karma', testsKarma);
         gulp.task(moduleName + ':installDep', installDep);    
 
        
@@ -53,10 +52,6 @@ dependens.forEach(function(name) {
             gulp.run(moduleName + ':js');
             gulp.run(moduleName + ':assets');
             gulp.run(moduleName + ':styles');
-
-            if(config.testing) {
-                gulp.run(moduleName + ':karma');
-            }
         });
 
         gulp.task(moduleName + ':lib')
@@ -78,12 +73,11 @@ dependens.forEach(function(name) {
                 dest = gDest + "/";
 
             gulp.src(src)
-                .pipe(less({
-                    paths: [ path.join() ]
-                }))
+                .pipe(less()).on('error', errorLog)
                 .pipe(concat(moduleName + '.css'))
                 .pipe(min ? csso() : gulp.dest(dest))
-                .pipe(gulp.dest(dest));
+                .pipe(gulp.dest(dest))
+
 
             if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':styles'); });
         }
@@ -97,10 +91,10 @@ dependens.forEach(function(name) {
                 .pipe(gulp.dest(dest));
 
             gulp.src(src + "*.html")
-                .pipe(global['html-tag-include']())
+                .pipe(global['html-tag-include']()).on('error', errorLog)
                 .pipe(gulp.dest(dest));
 
-            if(watch) gulp.watch(src, function() {  gulp.run(moduleName + ':assets'); });
+            if(watch) gulp.watch(src + "*.html", function() {  gulp.run(moduleName + ':assets'); });
         }
 
     
@@ -137,14 +131,6 @@ dependens.forEach(function(name) {
                 return bowerComp;             
             }
         }
-
-        function testsKarma(done) {
-            karma.server.start({
-                configFile:  devDir + 'tests/' + moduleName + '/karma.conf.js',
-                singleRun: false
-            }, done);
-        }
-
 
         function installDep(done) {
            var options = { 
@@ -184,10 +170,24 @@ dependens.forEach(function(name) {
             console.log('                        -------                          ');
             console.log('  types: js, styles, assets, vendor, installDep');
             console.log('  modules: ' + modules.join(', '));
-            console.log('                        -------                          ');
-            console.log('  gulp editor:karma -- run tests and native karma watcher');
             console.log('=============================================================');  
         });
     }
+
+    function errorLog(error) {
+        console.log([
+            '',
+            "----------ERROR MESSAGE START----------".bold.red.underline,
+            '','',
+            ("[" + error.name + " in " + error.plugin + "]").red.bold.inverse,
+            '',
+            error.message,
+            '','',
+            "----------ERROR MESSAGE END----------".bold.red.underline,
+            ''
+        ].join('\n'));
+        this.end();
+    }
+
 })();
 
